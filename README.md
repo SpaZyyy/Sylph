@@ -75,7 +75,7 @@ pip install -r requirements.txt
 
 # Настроить переменные окружения
 cp .env.example .env
-# Отредактируйте .env — вставьте TELEGRAM_BOT_TOKEN и AGENTROUTER_API_KEY
+# Отредактируйте .env — замените <BotFather_Token> и <AgentRouter> на реальные ключи
 
 # Запустить бота
 python main.py
