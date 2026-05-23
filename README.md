@@ -1,12 +1,12 @@
-# Sylph — Telegram Inline-бот с Google Gemini
+# Sylph — Telegram Inline-бот с DeepSeek через AgentRouter
 
-Inline Telegram-бот, который отвечает на вопросы с помощью Google Gemini API.  
-Пользователь вводит `@имя_бота запрос` в любом чате, получает ответ от Gemini и публикует его одним нажатием.
+Inline Telegram-бот, который отвечает на вопросы с помощью DeepSeek v4 Pro через [AgentRouter](https://agentrouter.org).  
+Пользователь вводит `@имя_бота запрос` в любом чате, получает ответ и публикует его одним нажатием.
 
 ## Возможности
 
 - **Inline mode** — бот работает в любом чате без добавления
-- **Google Gemini 2.0 Flash** — быстрые и качественные ответы
+- **DeepSeek v4 Pro** через AgentRouter (OpenAI-совместимый API)
 - **Retry + backoff** — автоматические повторы при ошибках и rate-limit
 - **Anti-spam** — кулдаун между запросами одного пользователя
 - **Защита от длинных запросов** — настраиваемый лимит символов
@@ -27,7 +27,7 @@ Sylph/
 │   └── inline.py        # Обработчик inline-запросов
 ├── services/
 │   ├── __init__.py
-│   └── gemini.py        # Сервис Gemini API (retry, timeout, rate-limit)
+│   └── gemini.py        # LLM сервис (AgentRouter, retry, timeout)
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
@@ -53,10 +53,10 @@ Sylph/
 3. Введите placeholder (например, `Задайте вопрос...`).
 4. Готово — inline mode включён.
 
-### 3. Получение Gemini API Key
+### 3. Получение AgentRouter API Key
 
-1. Перейдите на [Google AI Studio](https://aistudio.google.com/apikey).
-2. Нажмите **Create API Key**.
+1. Перейдите на [AgentRouter](https://agentrouter.org).
+2. Зарегистрируйтесь и получите API ключ.
 3. Скопируйте ключ.
 
 ### 4. Установка и запуск
@@ -75,7 +75,7 @@ pip install -r requirements.txt
 
 # Настроить переменные окружения
 cp .env.example .env
-# Отредактируйте .env — вставьте TELEGRAM_BOT_TOKEN и GEMINI_API_KEY
+# Отредактируйте .env — вставьте TELEGRAM_BOT_TOKEN и AGENTROUTER_API_KEY
 
 # Запустить бота
 python main.py
@@ -97,12 +97,12 @@ python main.py
 | Переменная | Описание | По умолчанию |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | Токен бота от BotFather | *обязательно* |
-| `GEMINI_API_KEY` | API ключ Google Gemini | *обязательно* |
-| `GEMINI_MODEL` | Модель Gemini | `gemini-2.0-flash` |
+| `AGENTROUTER_API_KEY` | API ключ AgentRouter | *обязательно* |
+| `LLM_MODEL` | Модель LLM | `deepseek-v4-pro` |
 | `MAX_QUERY_LENGTH` | Макс. длина запроса | `500` |
 | `MAX_RESPONSE_LENGTH` | Макс. длина ответа | `4000` |
-| `GEMINI_TIMEOUT` | Таймаут запроса к Gemini (сек) | `30` |
-| `GEMINI_MAX_RETRIES` | Макс. число повторов | `3` |
+| `LLM_TIMEOUT` | Таймаут запроса к LLM (сек) | `60` |
+| `LLM_MAX_RETRIES` | Макс. число повторов | `3` |
 | `COOLDOWN_SECONDS` | Кулдаун между запросами | `3.0` |
 | `INLINE_CACHE_TIME` | Кэш inline-ответа (сек) | `5` |
 | `LOG_LEVEL` | Уровень логирования | `INFO` |
@@ -144,7 +144,7 @@ sudo nano /etc/systemd/system/sylph-bot.service
 
 ```ini
 [Unit]
-Description=Sylph Telegram Gemini Bot
+Description=Sylph Telegram Bot (DeepSeek via AgentRouter)
 After=network.target
 
 [Service]
@@ -190,7 +190,8 @@ sudo journalctl -u sylph-bot -n 50 # последние 50 строк логов
 
 - **Python 3.11+**
 - **[aiogram 3.x](https://docs.aiogram.dev/)** — асинхронный фреймворк для Telegram Bot API
-- **[google-genai](https://pypi.org/project/google-genai/)** — официальный SDK Google Gemini API
+- **[httpx](https://www.python-httpx.org/)** — асинхронный HTTP-клиент
+- **[AgentRouter](https://agentrouter.org)** — OpenAI-совместимый LLM gateway
 - **python-dotenv** — загрузка переменных окружения из `.env`
 
 ## Лицензия

@@ -13,13 +13,13 @@ from aiogram.types import (
 )
 
 from config import settings
-from services.gemini import GeminiService
+from services.gemini import LLMService
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="inline")
 
-_gemini = GeminiService()
+_llm = LLMService()
 
 # user_id -> last request timestamp (simple anti-spam)
 _cooldowns: Dict[int, float] = {}
@@ -105,7 +105,7 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
 
     logger.info("Inline query from user=%d: %s", user_id, query_text[:80])
 
-    answer_text = await _gemini.generate(query_text)
+    answer_text = await _llm.generate(query_text)
 
     if not answer_text:
         await inline_query.answer(
@@ -115,7 +115,7 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
                     title="❌ Не удалось получить ответ",
                     description="Попробуйте позже или переформулируйте запрос",
                     input_message_content=InputTextMessageContent(
-                        message_text="К сожалению, не удалось получить ответ от Gemini. Попробуйте позже.",
+                        message_text="К сожалению, не удалось получить ответ. Попробуйте позже.",
                     ),
                 )
             ],
