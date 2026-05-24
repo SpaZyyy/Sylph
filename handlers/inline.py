@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
-from aiogram import Router
+from aiogram import Bot, Router
 from aiogram.types import (
+    ChosenInlineResult,
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -25,13 +25,8 @@ _llm = LLMService()
 # user_id -> last request timestamp (simple anti-spam)
 _cooldowns: Dict[int, float] = {}
 
-# Debounce: user_id -> (query_text, asyncio.Task)
-_pending: Dict[int, Tuple[str, asyncio.Task[None]]] = {}
-
-# Simple response cache: (user_id, query_text) -> answer_text
-_cache: Dict[Tuple[int, str], str] = {}
-
-_DEBOUNCE_SECONDS = 1.5
+# Simple response cache: query_text -> answer_text
+_cache: Dict[str, str] = {}
 
 
 def _result_id(text: str) -> str:
@@ -49,10 +44,9 @@ def _is_on_cooldown(user_id: int) -> bool:
 
 @router.inline_query()
 async def handle_inline_query(inline_query: InlineQuery) -> None:
+    """Show a clickable button — no LLM call happens here."""
     query_text = inline_query.query.strip()
-    user_id = inline_query.from_user.id
 
-    # Empty query — show a hint
     if not query_text:
         await inline_query.answer(
             results=[
@@ -70,7 +64,6 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
         )
         return
 
-    # Query too long
     if len(query_text) > settings.max_query_length:
         await inline_query.answer(
             results=[
@@ -88,29 +81,14 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
         )
         return
 
-    # Check cache first — if we already have an answer for this exact query, return it
-    cache_key = (user_id, query_text)
-    cached = _cache.get(cache_key)
-    if cached:
-        logger.info("Cache hit for user=%d query=%s", user_id, query_text[:40])
-        await _send_answer(inline_query, query_text, cached)
-        return
-
-    # Cancel any pending debounce task for this user
-    if user_id in _pending:
-        old_query, old_task = _pending[user_id]
-        if not old_task.done():
-            old_task.cancel()
-
-    # Show "typing" placeholder while waiting for debounce
     await inline_query.answer(
         results=[
             InlineQueryResultArticle(
-                id=_result_id("loading_" + query_text[:32]),
-                title="⏳ Печатаю ответ...",
-                description="Подождите, пока я закончу думать",
+                id=_result_id("ask_" + query_text),
+                title=f"🔍 Получить ответ на: {query_text[:50]}",
+                description="Нажмите, чтобы отправить запрос",
                 input_message_content=InputTextMessageContent(
-                    message_text=f"**Вопрос:** {query_text}\n\n_Генерирую ответ..._",
+                    message_text=f"**Вопрос:** {query_text}\n\n⏳ _Генерирую ответ..._",
                     parse_mode="Markdown",
                 ),
             )
@@ -119,63 +97,56 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
         is_personal=True,
     )
 
-    # Schedule debounced LLM call
-    task = asyncio.create_task(_debounced_generate(user_id, query_text))
-    _pending[user_id] = (query_text, task)
 
+@router.chosen_inline_result()
+async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
+    """Called when user clicks the button. Now we call the LLM and edit the message."""
+    query_text = chosen.query.strip()
+    user_id = chosen.from_user.id
+    inline_message_id = chosen.inline_message_id
 
-async def _debounced_generate(user_id: int, query_text: str) -> None:
-    """Wait for debounce period, then call LLM and cache the result."""
-    try:
-        await asyncio.sleep(_DEBOUNCE_SECONDS)
-    except asyncio.CancelledError:
+    if not query_text or not inline_message_id:
         return
-
-    # After debounce, check if this is still the latest query for this user
-    if user_id in _pending:
-        current_query, _ = _pending[user_id]
-        if current_query != query_text:
-            return
 
     if _is_on_cooldown(user_id):
+        await bot.edit_message_text(
+            text="⏳ Слишком частые запросы. Подождите несколько секунд.",
+            inline_message_id=inline_message_id,
+        )
         return
 
-    logger.info("Generating answer for user=%d: %s", user_id, query_text[:80])
+    logger.info("User %d chose query: %s", user_id, query_text[:80])
+
+    # Check cache
+    cached = _cache.get(query_text)
+    if cached:
+        logger.info("Cache hit for query: %s", query_text[:40])
+        await bot.edit_message_text(
+            text=f"**Вопрос:** {query_text}\n\n**Ответ:** {cached}",
+            inline_message_id=inline_message_id,
+            parse_mode="Markdown",
+        )
+        return
 
     answer_text = await _llm.generate(query_text)
-    if answer_text:
-        _cache[(user_id, query_text)] = answer_text
-        # Limit cache size
-        if len(_cache) > 500:
-            oldest = next(iter(_cache))
-            del _cache[oldest]
 
-    # Clean up pending
-    _pending.pop(user_id, None)
+    if not answer_text:
+        await bot.edit_message_text(
+            text=f"**Вопрос:** {query_text}\n\n❌ Не удалось получить ответ. Попробуйте позже.",
+            inline_message_id=inline_message_id,
+            parse_mode="Markdown",
+        )
+        return
 
+    # Cache the answer
+    _cache[query_text] = answer_text
+    if len(_cache) > 500:
+        oldest = next(iter(_cache))
+        del _cache[oldest]
 
-async def _send_answer(
-    inline_query: InlineQuery,
-    query_text: str,
-    answer_text: str,
-) -> None:
-    short_desc = answer_text[:100] + ("..." if len(answer_text) > 100 else "")
-
-    results = [
-        InlineQueryResultArticle(
-            id=_result_id(query_text + answer_text[:64]),
-            title=f"Ответ на: {query_text[:50]}",
-            description=short_desc,
-            input_message_content=InputTextMessageContent(
-                message_text=f"**Вопрос:** {query_text}\n\n**Ответ:** {answer_text}",
-                parse_mode="Markdown",
-            ),
-        ),
-    ]
-
-    await inline_query.answer(
-        results=results,
-        cache_time=settings.inline_cache_time,
-        is_personal=True,
+    await bot.edit_message_text(
+        text=f"**Вопрос:** {query_text}\n\n**Ответ:** {answer_text}",
+        inline_message_id=inline_message_id,
+        parse_mode="Markdown",
     )
-    logger.info("Inline answer sent for user=%d, length=%d", inline_query.from_user.id, len(answer_text))
+    logger.info("Answer sent for user=%d, length=%d", user_id, len(answer_text))
