@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from config import settings
+from config.settings import ConfigError, settings
 from handlers import inline_router
 
 
@@ -30,12 +30,11 @@ async def main() -> None:
 
     bot = Bot(
         token=settings.telegram_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
     dp.include_router(inline_router)
 
-    # Graceful shutdown on SIGINT / SIGTERM
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
 
@@ -55,12 +54,19 @@ async def main() -> None:
     await shutdown_event.wait()
 
     logger.info("Stopping polling…")
-    await dp.stop_polling()
     polling_task.cancel()
+    try:
+        await polling_task
+    except asyncio.CancelledError:
+        pass
 
     await bot.session.close()
     logger.info("Bot stopped cleanly")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except ConfigError as exc:
+        logging.critical("Configuration error: %s", exc)
+        sys.exit(1)

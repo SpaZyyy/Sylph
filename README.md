@@ -27,7 +27,7 @@ Sylph/
 │   └── inline.py        # Обработчик inline-запросов
 ├── services/
 │   ├── __init__.py
-│   └── gemini.py        # LLM сервис (AgentRouter, retry, timeout)
+│   └── llm.py           # LLM сервис (AgentRouter, retry, timeout)
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore

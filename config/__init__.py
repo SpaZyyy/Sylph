@@ -1,3 +1,3 @@
-from config.settings import settings
+from config.settings import ConfigError, settings
 
-__all__ = ["settings"]
+__all__ = ["ConfigError", "settings"]
