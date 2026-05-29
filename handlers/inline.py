@@ -63,12 +63,26 @@ def _check_and_set_cooldown(user_id: int) -> bool:
 
 def _format_answer(query: str, answer: str) -> str:
     q = html.escape(query)
-    a = html.escape(answer)
     prefix = f"<b>Вопрос:</b> {q}\n\n<b>Ответ:</b> "
     budget = _TELEGRAM_MESSAGE_LIMIT - len(prefix)
-    if len(a) > budget:
-        a = a[: budget - 3] + "..."
-    return prefix + a
+    if budget <= 0:
+        return (prefix + "...")[:_TELEGRAM_MESSAGE_LIMIT]
+    # Truncate raw answer before escaping to avoid splitting HTML entities
+    truncated = answer[:budget]
+    escaped = html.escape(truncated)
+    # If escaped version exceeds budget (due to entity expansion), reduce raw text
+    while len(escaped) > budget:
+        ratio = budget * len(truncated) // len(escaped) - 1
+        truncated = truncated[:ratio] if ratio > 0 else truncated[:-1]
+        if not truncated:
+            break
+        escaped = html.escape(truncated)
+    # If we had to truncate the original answer, add ellipsis
+    if len(answer) > len(truncated):
+        while truncated and len(html.escape(truncated) + "...") > budget:
+            truncated = truncated[:-1]
+        escaped = html.escape(truncated) + "..."
+    return prefix + escaped
 
 
 @router.inline_query()
