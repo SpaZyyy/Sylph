@@ -44,9 +44,9 @@ class Settings:
     # Telegram
     telegram_token: str = field(default_factory=lambda: _require_env("TELEGRAM_BOT_TOKEN"))
 
-    # AgentRouter
-    agentrouter_api_key: str = field(default_factory=lambda: _require_env("AGENTROUTER_API_KEY"))
-    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "deepseek-v4-pro"))
+    # Mistral
+    mistral_api_key: str = field(default_factory=lambda: _require_env("MISTRAL_API_KEY"))
+    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "mistral-small-latest"))
 
     # System prompt
     system_prompt: str = field(

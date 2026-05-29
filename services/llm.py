@@ -21,7 +21,7 @@ _PREFIX_RESERVE = 200  # room for "Вопрос: ... Ответ: ..." wrapper
 
 
 class LLMService:
-    """Async client for AgentRouter (OpenAI-compatible) with retry and rate-limit handling."""
+    """Async client for Mistral API (OpenAI-compatible) with retry and rate-limit handling."""
 
     def __init__(self) -> None:
         self._model = settings.llm_model
@@ -32,14 +32,14 @@ class LLMService:
             _TELEGRAM_MESSAGE_LIMIT - _PREFIX_RESERVE,
         )
         self._client = AsyncOpenAI(
-            api_key=settings.agentrouter_api_key,
-            base_url="https://agentrouter.org/v1",
+            api_key=settings.mistral_api_key,
+            base_url="https://api.mistral.ai/v1",
             timeout=float(settings.llm_timeout),
         )
         logger.info("LLMService initialized (model=%s)", self._model)
 
     async def generate(self, prompt: str) -> Optional[str]:
-        """Send a prompt to AgentRouter and return the text response.
+        """Send a prompt to Mistral and return the text response.
 
         Returns ``None`` when no usable answer could be obtained.
         """
