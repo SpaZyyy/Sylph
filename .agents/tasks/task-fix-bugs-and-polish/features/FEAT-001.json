@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix all 8 identified bugs and polish issues in the Sylph Telegram bot codebase",
+  "status": "completed",
+  "steps": [
+    "Bug #1 - Fix ConfigError not caught at runtime: In config/settings.py, remove the module-level `settings = Settings()` line. Create a `get_settings()` function that uses `functools.lru_cache` to lazily instantiate Settings on first call. Update config/__init__.py to export `get_settings` instead of `settings`. Update main.py to call `get_settings()` inside `main()` (within the try/except ConfigError block) and assign to a local. Update handlers/inline.py to call `get_settings()` where settings is used. Update services/llm.py similarly. Update handlers/__init__.py and services/__init__.py if they reference settings.",
+    "Bug #2 - Fix broken cooldown logic: In handlers/inline.py, split _is_on_cooldown into two functions: (1) `_is_on_cooldown_passive(user_id)` that only checks without mutating (for use in handle_inline_query as an optional read-only check, or remove cooldown check from inline_query entirely), and (2) `_record_cooldown(user_id)` / `_check_and_set_cooldown(user_id)` that checks AND writes timestamp (for use in handle_chosen_result). In handle_chosen_result, add the cooldown check at the beginning - if on cooldown, edit the message to show a 'please wait' message and return early. In handle_inline_query, remove the _is_on_cooldown call entirely (since inline_query fires on every keystroke, any cooldown message there is disruptive).",
+    "Bug #3 - Fix _PREFIX_RESERVE message truncation: In handlers/inline.py _format_answer function, after assembling the full HTML string, check if its length exceeds 4096 characters. If so, truncate the answer portion (not the question) to fit within the 4096 limit. Remove the _PREFIX_RESERVE constant from services/llm.py. In services/llm.py, compute _max_len simply as settings.max_response_length (the final safe truncation happens in _format_answer). The _format_answer function should: (1) escape query and answer, (2) build the prefix `<b>Вопрос:</b> {escaped_query}\\n\\n<b>Ответ:</b> `, (3) calculate remaining budget = 4096 - len(prefix), (4) truncate escaped answer to fit budget, (5) return assembled string.",
+    "Bug #4 - Fix exc.status_code AttributeError: In services/llm.py, in the `except APIError as exc:` block, replace `exc.status_code or 0` with `getattr(exc, 'status_code', None) or 0`.",
+    "Issue #5 - Use inline_cache_time setting: In handlers/inline.py, replace all hardcoded `cache_time=1` values in answer_inline_query calls with `get_settings().inline_cache_time` (or the settings reference as accessed after Bug #1 fix).",
+    "Issue #6 - Remove unused imports: In handlers/inline.py, remove `Dict, Tuple` from the `from typing import Dict, Tuple` import line. If no other typing imports remain, remove the line entirely.",
+    "Issue #7 - Make max_tokens configurable: In config/settings.py, add a `max_tokens: int` field to the Settings dataclass with `default_factory=lambda: _int_env('MAX_TOKENS', '2048')`. In services/llm.py, replace the hardcoded `max_tokens=2048` with `settings.max_tokens` (using the lazy settings access). Add `MAX_TOKENS=2048` to .env.example.",
+    "Issue #8 - Fix README desync: In README.md: (1) Change the MAX_RESPONSE_LENGTH default in the config table from `4000` to `3800` to match the actual code default. (2) Replace `sylph_gemini_bot` with a generic placeholder like `sylph_bot` or `your_bot_username`. (3) Remove `httpx` from the Technologies section or note it is a transitive dependency of openai/aiogram, not directly used. (4) Add MAX_TOKENS to the config table."
+  ],
+  "acceptance_criteria": [
+    "Running `python -c \"from config.settings import get_settings, ConfigError\"` succeeds without raising ConfigError (settings are not instantiated at import time)",
+    "The module-level `settings = Settings()` line no longer exists in config/settings.py",
+    "handle_inline_query does not call any cooldown function that mutates state",
+    "handle_chosen_result checks cooldown before making the LLM call",
+    "_format_answer truncates the assembled message to at most 4096 characters",
+    "The _PREFIX_RESERVE constant is removed from services/llm.py",
+    "exc.status_code uses getattr pattern in services/llm.py",
+    "All answer_inline_query calls use the settings value for cache_time",
+    "Dict, Tuple are not imported in handlers/inline.py",
+    "max_tokens is a field in Settings and used in llm.py",
+    "README shows 3800 as default for MAX_RESPONSE_LENGTH and does not mention httpx as a direct dependency"
+  ],
+  "verification": [
+    "Run: cd /projects/sandbox/Sylph && python -c \"from config.settings import get_settings, ConfigError; print('OK')\" to confirm lazy settings import works",
+    "Run: cd /projects/sandbox/Sylph && python -c \"import ast; [ast.parse(open(f).read()) for f in ['main.py','config/settings.py','config/__init__.py','handlers/inline.py','handlers/__init__.py','services/llm.py','services/__init__.py']]\" to confirm all files parse without syntax errors",
+    "Run: grep -n 'settings = Settings()' /projects/sandbox/Sylph/config/settings.py to confirm it returns nothing (no module-level instantiation)",
+    "Run: grep -n '_is_on_cooldown' /projects/sandbox/Sylph/handlers/inline.py to verify cooldown logic placement"
+  ],
+  "blocked_reason": null,
+  "findings": "Network is restricted (INTEGRATIONS_ONLY), cannot pip install dependencies. Verified via AST parsing and grep checks. All syntax valid, all structural changes confirmed. python-dotenv/aiogram/openai not installable but code structure is correct. Additional fix applied: module-level _llm, _cooldowns, and _cache variables called get_settings()/LLMService() at import time, defeating Bug #1 fix. Replaced with functools.lru_cache lazy-init functions (_get_llm, _get_cooldowns, _get_cache)."
+}

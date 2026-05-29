@@ -9,13 +9,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from config.settings import ConfigError, settings
+from config.settings import ConfigError, get_settings
 from handlers import inline_router
 
 
-def _setup_logging() -> None:
+def _setup_logging(log_level: str) -> None:
     logging.basicConfig(
-        level=settings.log_level,
+        level=log_level,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         stream=sys.stdout,
@@ -25,7 +25,8 @@ def _setup_logging() -> None:
 
 
 async def main() -> None:
-    _setup_logging()
+    settings = get_settings()
+    _setup_logging(settings.log_level)
     logger = logging.getLogger(__name__)
 
     bot = Bot(

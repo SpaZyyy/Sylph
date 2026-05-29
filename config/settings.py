@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from dataclasses import dataclass, field
@@ -63,6 +64,7 @@ class Settings:
     max_response_length: int = field(default_factory=lambda: _int_env("MAX_RESPONSE_LENGTH", "3800"))
     llm_timeout: int = field(default_factory=lambda: _int_env("LLM_TIMEOUT", "60"))
     llm_max_retries: int = field(default_factory=lambda: _int_env("LLM_MAX_RETRIES", "3"))
+    max_tokens: int = field(default_factory=lambda: _int_env("MAX_TOKENS", "2048"))
 
     # Anti-spam cooldown in seconds
     cooldown_seconds: float = field(default_factory=lambda: _float_env("COOLDOWN_SECONDS", "3.0"))
@@ -77,4 +79,7 @@ class Settings:
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
 
-settings = Settings()
+@functools.lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Lazily instantiate and cache Settings on first call."""
+    return Settings()

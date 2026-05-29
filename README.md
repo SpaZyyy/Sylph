@@ -43,7 +43,7 @@ Sylph/
 1. Откройте [@BotFather](https://t.me/BotFather) в Telegram.
 2. Отправьте `/newbot`.
 3. Введите имя бота (например, `Sylph Bot`).
-4. Введите username бота (например, `sylph_gemini_bot`). Должен заканчиваться на `bot`.
+4. Введите username бота (например, `sylph_bot`). Должен заканчиваться на `bot`.
 5. Скопируйте полученный **токен** (`123456:ABC-DEF...`).
 
 ### 2. Включение Inline Mode
@@ -101,7 +101,8 @@ python main.py
 | `MISTRAL_API_KEY` | API ключ Mistral AI | *обязательно* |
 | `LLM_MODEL` | Модель LLM | `mistral-small-latest` |
 | `MAX_QUERY_LENGTH` | Макс. длина запроса | `500` |
-| `MAX_RESPONSE_LENGTH` | Макс. длина ответа | `4000` |
+| `MAX_RESPONSE_LENGTH` | Макс. длина ответа | `3800` |
+| `MAX_TOKENS` | Макс. токенов в ответе LLM | `2048` |
 | `LLM_TIMEOUT` | Таймаут запроса к LLM (сек) | `60` |
 | `LLM_MAX_RETRIES` | Макс. число повторов | `3` |
 | `COOLDOWN_SECONDS` | Кулдаун между запросами | `3.0` |
@@ -191,8 +192,8 @@ sudo journalctl -u sylph-bot -n 50 # последние 50 строк логов
 
 - **Python 3.11+**
 - **[aiogram 3.x](https://docs.aiogram.dev/)** — асинхронный фреймворк для Telegram Bot API
-- **[httpx](https://www.python-httpx.org/)** — асинхронный HTTP-клиент
 - **[Mistral AI](https://mistral.ai)** — быстрая и качественная LLM
+- **[cachetools](https://cachetools.readthedocs.io/)** — кэширование ответов с TTL
 - **python-dotenv** — загрузка переменных окружения из `.env`
 
 ## Лицензия
