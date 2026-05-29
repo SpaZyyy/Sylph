@@ -4,13 +4,9 @@ import asyncio
 import logging
 from typing import Optional
 
-from openai import (
-    APIConnectionError,
-    APIError,
-    APITimeoutError,
-    AsyncOpenAI,
-    RateLimitError,
-)
+import httpx
+from mistralai import Mistral
+from mistralai import models as mistral_models
 
 from config import settings
 
@@ -21,7 +17,7 @@ _PREFIX_RESERVE = 200  # room for "Вопрос: ... Ответ: ..." wrapper
 
 
 class LLMService:
-    """Async client for AgentRouter (OpenAI-compatible) with retry and rate-limit handling."""
+    """Async client for the Mistral API with retry and rate-limit handling."""
 
     def __init__(self) -> None:
         self._model = settings.llm_model
@@ -31,15 +27,16 @@ class LLMService:
             settings.max_response_length,
             _TELEGRAM_MESSAGE_LIMIT - _PREFIX_RESERVE,
         )
-        self._client = AsyncOpenAI(
-            api_key=settings.agentrouter_api_key,
-            base_url="https://agentrouter.org/v1",
-            timeout=float(settings.llm_timeout),
+        # Disable the SDK's built-in retries — we manage retries/backoff ourselves.
+        self._client = Mistral(
+            api_key=settings.mistral_api_key,
+            timeout_ms=settings.llm_timeout * 1000,
+            retry_config=None,
         )
         logger.info("LLMService initialized (model=%s)", self._model)
 
     async def generate(self, prompt: str) -> Optional[str]:
-        """Send a prompt to AgentRouter and return the text response.
+        """Send a prompt to the Mistral API and return the text response.
 
         Returns ``None`` when no usable answer could be obtained.
         """
@@ -51,14 +48,14 @@ class LLMService:
 
         for attempt in range(1, self._max_retries + 1):
             try:
-                response = await self._client.chat.completions.create(
+                response = await self._client.chat.complete_async(
                     model=self._model,
                     messages=messages,
                     max_tokens=2048,
                     temperature=0.7,
                 )
 
-                if not response.choices:
+                if not response or not response.choices:
                     logger.warning("LLM returned no choices (attempt %d)", attempt)
                     return None
 
@@ -72,35 +69,46 @@ class LLMService:
 
                 return text
 
-            except RateLimitError as exc:
+            except mistral_models.SDKError as exc:
                 last_exc = exc
-                wait = 5 * attempt
-                logger.warning(
-                    "Rate limit (429), backing off %ds (attempt %d/%d)",
-                    wait, attempt, self._max_retries,
+                status = getattr(exc, "status_code", 0) or 0
+                if status == 429:
+                    wait = 5 * attempt
+                    logger.warning(
+                        "Rate limit (429), backing off %ds (attempt %d/%d)",
+                        wait, attempt, self._max_retries,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                logger.error(
+                    "Mistral API error %d (attempt %d/%d): %s",
+                    status, attempt, self._max_retries, exc,
                 )
-                await asyncio.sleep(wait)
-                continue
 
-            except APITimeoutError as exc:
+            except mistral_models.HTTPValidationError as exc:
+                # 422 — malformed request; retrying won't help.
+                logger.error("Mistral request validation error: %s", exc)
+                return None
+
+            except httpx.TimeoutException as exc:
                 last_exc = exc
                 logger.warning(
                     "LLM request timed out (attempt %d/%d)",
                     attempt, self._max_retries,
                 )
 
-            except APIConnectionError as exc:
+            except httpx.RequestError as exc:
                 last_exc = exc
                 logger.warning(
                     "LLM connection error (attempt %d/%d): %s",
                     attempt, self._max_retries, exc,
                 )
 
-            except APIError as exc:
+            except Exception as exc:  # noqa: BLE001 - last-resort guard
                 last_exc = exc
-                logger.error(
-                    "LLM API error %d (attempt %d/%d): %s",
-                    exc.status_code or 0, attempt, self._max_retries, exc,
+                logger.exception(
+                    "Unexpected LLM error (attempt %d/%d)",
+                    attempt, self._max_retries,
                 )
 
             if attempt < self._max_retries:

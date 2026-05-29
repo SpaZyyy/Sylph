@@ -1,12 +1,12 @@
-# Sylph — Telegram Inline-бот с DeepSeek через AgentRouter
+# Sylph — Telegram Inline-бот на Mistral API
 
-Inline Telegram-бот, который отвечает на вопросы с помощью DeepSeek v4 Pro через [AgentRouter](https://agentrouter.org).  
+Inline Telegram-бот, который отвечает на вопросы с помощью [Mistral AI](https://mistral.ai) через официальный SDK `mistralai`.  
 Пользователь вводит `@имя_бота запрос` в любом чате, получает ответ и публикует его одним нажатием.
 
 ## Возможности
 
 - **Inline mode** — бот работает в любом чате без добавления
-- **DeepSeek v4 Pro** через AgentRouter (OpenAI-совместимый API)
+- **Mistral API** через официальный Python SDK (`mistralai`)
 - **Retry + backoff** — автоматические повторы при ошибках и rate-limit
 - **Anti-spam** — кулдаун между запросами одного пользователя
 - **Защита от длинных запросов** — настраиваемый лимит символов
@@ -27,7 +27,7 @@ Sylph/
 │   └── inline.py        # Обработчик inline-запросов
 ├── services/
 │   ├── __init__.py
-│   └── llm.py           # LLM сервис (AgentRouter, retry, timeout)
+│   └── llm.py           # LLM сервис (Mistral API, retry, timeout)
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
@@ -54,11 +54,11 @@ Sylph/
 4. Отправьте `/setinlinefeedback` и выберите **100%** — это нужно, чтобы бот мог редактировать inline-сообщения после нажатия кнопки.
 5. Готово — inline mode включён.
 
-### 3. Получение AgentRouter API Key
+### 3. Получение Mistral API Key
 
-1. Перейдите на [AgentRouter](https://agentrouter.org).
-2. Зарегистрируйтесь и получите API ключ.
-3. Скопируйте ключ.
+1. Перейдите в [Mistral AI Console](https://console.mistral.ai/).
+2. Зарегистрируйтесь и откройте раздел **API Keys**.
+3. Создайте новый ключ и скопируйте его.
 
 ### 4. Установка и запуск
 
@@ -76,7 +76,7 @@ pip install -r requirements.txt
 
 # Настроить переменные окружения
 cp .env.example .env
-# Отредактируйте .env — замените <BotFather_Token> и <AgentRouter> на реальные ключи
+# Отредактируйте .env — замените <BotFather_Token> и <Mistral_API_Key> на реальные ключи
 
 # Запустить бота
 python main.py
@@ -98,8 +98,8 @@ python main.py
 | Переменная | Описание | По умолчанию |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | Токен бота от BotFather | *обязательно* |
-| `AGENTROUTER_API_KEY` | API ключ AgentRouter | *обязательно* |
-| `LLM_MODEL` | Модель LLM | `deepseek-v4-pro` |
+| `MISTRAL_API_KEY` | API ключ Mistral AI | *обязательно* |
+| `MISTRAL_MODEL` | Модель Mistral | `mistral-large-latest` |
 | `MAX_QUERY_LENGTH` | Макс. длина запроса | `500` |
 | `MAX_RESPONSE_LENGTH` | Макс. длина ответа | `4000` |
 | `LLM_TIMEOUT` | Таймаут запроса к LLM (сек) | `60` |
@@ -145,7 +145,7 @@ sudo nano /etc/systemd/system/sylph-bot.service
 
 ```ini
 [Unit]
-Description=Sylph Telegram Bot (DeepSeek via AgentRouter)
+Description=Sylph Telegram Bot (Mistral API)
 After=network.target
 
 [Service]
@@ -191,8 +191,8 @@ sudo journalctl -u sylph-bot -n 50 # последние 50 строк логов
 
 - **Python 3.11+**
 - **[aiogram 3.x](https://docs.aiogram.dev/)** — асинхронный фреймворк для Telegram Bot API
-- **[httpx](https://www.python-httpx.org/)** — асинхронный HTTP-клиент
-- **[AgentRouter](https://agentrouter.org)** — OpenAI-совместимый LLM gateway
+- **[mistralai](https://github.com/mistralai/client-python)** — официальный Python SDK для Mistral AI
+- **[httpx](https://www.python-httpx.org/)** — асинхронный HTTP-клиент (используется внутри SDK)
 - **python-dotenv** — загрузка переменных окружения из `.env`
 
 ## Лицензия
