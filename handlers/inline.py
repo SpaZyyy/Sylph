@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import html
 import logging
 import time
@@ -22,15 +23,22 @@ logger = logging.getLogger(__name__)
 
 router = Router(name="inline")
 
-_llm = LLMService()
 
-# user_id -> last request monotonic timestamp; entries expire naturally
-_cooldowns: TTLCache[int, float] = TTLCache(
-    maxsize=10_000, ttl=get_settings().cooldown_seconds * 2
-)
+@functools.lru_cache(maxsize=1)
+def _get_llm() -> LLMService:
+    return LLMService()
 
-# query_key -> answer_text with TTL
-_cache: TTLCache[str, str] = TTLCache(maxsize=1000, ttl=get_settings().cache_ttl)
+
+@functools.lru_cache(maxsize=1)
+def _get_cooldowns() -> TTLCache:
+    """user_id -> last request monotonic timestamp; entries expire naturally."""
+    return TTLCache(maxsize=10_000, ttl=get_settings().cooldown_seconds * 2)
+
+
+@functools.lru_cache(maxsize=1)
+def _get_cache() -> TTLCache:
+    """query_key -> answer_text with TTL."""
+    return TTLCache(maxsize=1000, ttl=get_settings().cache_ttl)
 
 _TELEGRAM_MESSAGE_LIMIT = 4096
 
@@ -46,10 +54,10 @@ def _cache_key(text: str) -> str:
 def _check_and_set_cooldown(user_id: int) -> bool:
     """Check if user is on cooldown. If not, record timestamp and return False."""
     now = time.monotonic()
-    last = _cooldowns.get(user_id)
+    last = _get_cooldowns().get(user_id)
     if last is not None and now - last < get_settings().cooldown_seconds:
         return True
-    _cooldowns[user_id] = now
+    _get_cooldowns()[user_id] = now
     return False
 
 
@@ -149,7 +157,7 @@ async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
     logger.info("User %d chose query: %s", user_id, query_text[:80])
 
     key = _cache_key(query_text)
-    cached = _cache.get(key)
+    cached = _get_cache().get(key)
     if cached:
         logger.info("Cache hit for query: %s", query_text[:40])
         try:
@@ -162,7 +170,7 @@ async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
             logger.warning("Failed to edit inline message: %s", exc)
         return
 
-    answer_text = await _llm.generate(query_text)
+    answer_text = await _get_llm().generate(query_text)
 
     if not answer_text:
         try:
@@ -175,7 +183,7 @@ async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
             logger.warning("Failed to edit inline message: %s", exc)
         return
 
-    _cache[key] = answer_text
+    _get_cache()[key] = answer_text
 
     try:
         await bot.edit_message_text(
