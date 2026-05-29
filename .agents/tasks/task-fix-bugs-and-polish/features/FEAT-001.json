@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Fix all 8 identified bugs and polish issues in the Sylph Telegram bot codebase",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Bug #1 - Fix ConfigError not caught at runtime: In config/settings.py, remove the module-level `settings = Settings()` line. Create a `get_settings()` function that uses `functools.lru_cache` to lazily instantiate Settings on first call. Update config/__init__.py to export `get_settings` instead of `settings`. Update main.py to call `get_settings()` inside `main()` (within the try/except ConfigError block) and assign to a local. Update handlers/inline.py to call `get_settings()` where settings is used. Update services/llm.py similarly. Update handlers/__init__.py and services/__init__.py if they reference settings.",
     "Bug #2 - Fix broken cooldown logic: In handlers/inline.py, split _is_on_cooldown into two functions: (1) `_is_on_cooldown_passive(user_id)` that only checks without mutating (for use in handle_inline_query as an optional read-only check, or remove cooldown check from inline_query entirely), and (2) `_record_cooldown(user_id)` / `_check_and_set_cooldown(user_id)` that checks AND writes timestamp (for use in handle_chosen_result). In handle_chosen_result, add the cooldown check at the beginning - if on cooldown, edit the message to show a 'please wait' message and return early. In handle_inline_query, remove the _is_on_cooldown call entirely (since inline_query fires on every keystroke, any cooldown message there is disruptive).",
@@ -33,5 +33,5 @@
     "Run: grep -n '_is_on_cooldown' /projects/sandbox/Sylph/handlers/inline.py to verify cooldown logic placement"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Network is restricted (INTEGRATIONS_ONLY), cannot pip install dependencies. Verified via AST parsing and grep checks. All syntax valid, all structural changes confirmed. python-dotenv/aiogram/openai not installable but code structure is correct."
 }
