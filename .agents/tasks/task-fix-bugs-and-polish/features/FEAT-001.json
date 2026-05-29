@@ -33,5 +33,5 @@
     "Run: grep -n '_is_on_cooldown' /projects/sandbox/Sylph/handlers/inline.py to verify cooldown logic placement"
   ],
   "blocked_reason": null,
-  "findings": "Network is restricted (INTEGRATIONS_ONLY), cannot pip install dependencies. Verified via AST parsing and grep checks. All syntax valid, all structural changes confirmed. python-dotenv/aiogram/openai not installable but code structure is correct."
+  "findings": "Network is restricted (INTEGRATIONS_ONLY), cannot pip install dependencies. Verified via AST parsing and grep checks. All syntax valid, all structural changes confirmed. python-dotenv/aiogram/openai not installable but code structure is correct. Additional fix applied: module-level _llm, _cooldowns, and _cache variables called get_settings()/LLMService() at import time, defeating Bug #1 fix. Replaced with functools.lru_cache lazy-init functions (_get_llm, _get_cooldowns, _get_cache)."
 }
