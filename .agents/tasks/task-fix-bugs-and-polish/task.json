@@ -2,7 +2,7 @@
   "task_id": "task-fix-bugs-and-polish",
   "task_description": "Fix all identified bugs and polish issues in the Sylph Telegram bot codebase: lazy settings instantiation, cooldown logic fix, message truncation fix, APIError attribute fix, unused settings usage, unused imports removal, max_tokens configurability, and README corrections.",
   "status": "completed",
-  "feature_order": ["FEAT-001"],
+  "feature_order": ["FEAT-001", "FEAT-002"],
   "blocked_reason": null,
   "verification": {
     "build": "skipped",
