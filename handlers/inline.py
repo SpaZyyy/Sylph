@@ -95,23 +95,6 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
         )
         return
 
-    if _is_on_cooldown(user_id):
-        await inline_query.answer(
-            results=[
-                InlineQueryResultArticle(
-                    id=_result_id(),
-                    title="Подождите немного...",
-                    description="Слишком частые запросы",
-                    input_message_content=InputTextMessageContent(
-                        message_text="Пожалуйста, подождите несколько секунд перед следующим запросом.",
-                    ),
-                )
-            ],
-            cache_time=1,
-            is_personal=True,
-        )
-        return
-
     q_escaped = html.escape(query_text)
     await inline_query.answer(
         results=[
@@ -138,6 +121,16 @@ async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
     inline_message_id = chosen.inline_message_id
 
     if not query_text or not inline_message_id:
+        return
+
+    if _is_on_cooldown(user_id):
+        try:
+            await bot.edit_message_text(
+                text="Пожалуйста, подождите несколько секунд перед следующим запросом.",
+                inline_message_id=inline_message_id,
+            )
+        except (TelegramBadRequest, TelegramAPIError) as exc:
+            logger.warning("Failed to edit inline message: %s", exc)
         return
 
     logger.info("User %d chose query: %s", user_id, query_text[:80])
