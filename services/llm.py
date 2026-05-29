@@ -12,25 +12,21 @@ from openai import (
     RateLimitError,
 )
 
-from config import settings
+from config import get_settings
 
 logger = logging.getLogger(__name__)
-
-_TELEGRAM_MESSAGE_LIMIT = 4096
-_PREFIX_RESERVE = 200  # room for "Вопрос: ... Ответ: ..." wrapper
 
 
 class LLMService:
     """Async client for Mistral API (OpenAI-compatible) with retry and rate-limit handling."""
 
     def __init__(self) -> None:
+        settings = get_settings()
         self._model = settings.llm_model
         self._max_retries = settings.llm_max_retries
         self._system_prompt = settings.system_prompt
-        self._max_len = min(
-            settings.max_response_length,
-            _TELEGRAM_MESSAGE_LIMIT - _PREFIX_RESERVE,
-        )
+        self._max_len = settings.max_response_length
+        self._max_tokens = settings.max_tokens
         self._client = AsyncOpenAI(
             api_key=settings.mistral_api_key,
             base_url="https://api.mistral.ai/v1",
@@ -54,7 +50,7 @@ class LLMService:
                 response = await self._client.chat.completions.create(
                     model=self._model,
                     messages=messages,
-                    max_tokens=2048,
+                    max_tokens=self._max_tokens,
                     temperature=0.7,
                 )
 
@@ -100,7 +96,7 @@ class LLMService:
                 last_exc = exc
                 logger.error(
                     "LLM API error %d (attempt %d/%d): %s",
-                    exc.status_code or 0, attempt, self._max_retries, exc,
+                    getattr(exc, 'status_code', None) or 0, attempt, self._max_retries, exc,
                 )
 
             if attempt < self._max_retries:

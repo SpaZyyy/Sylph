@@ -9,11 +9,12 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from config.settings import ConfigError, settings
+from config.settings import ConfigError, get_settings
 from handlers import inline_router
 
 
 def _setup_logging() -> None:
+    settings = get_settings()
     logging.basicConfig(
         level=settings.log_level,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -27,6 +28,8 @@ def _setup_logging() -> None:
 async def main() -> None:
     _setup_logging()
     logger = logging.getLogger(__name__)
+
+    settings = get_settings()
 
     bot = Bot(
         token=settings.telegram_token,

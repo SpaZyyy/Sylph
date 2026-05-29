@@ -1,0 +1,26 @@
+{
+  "project_type": "Python Telegram inline bot using aiogram 3.x with Mistral LLM via OpenAI SDK",
+  "language": "Python 3.11+",
+  "build_system": "pip with requirements.txt, no Makefile or build script",
+  "test_framework": "No test framework present in the repo",
+  "build_command": "pip install -r requirements.txt",
+  "test_command": "python -c \"import main; import config; import handlers; import services\"",
+  "verification_instructions": "Install dependencies and verify imports succeed without errors. Since there are no tests, validate with Python syntax/import checks.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt",
+  "environment_constraints": "No test suite exists. Validation is limited to syntax checks and import validation. Bot requires TELEGRAM_BOT_TOKEN and MISTRAL_API_KEY env vars to fully instantiate Settings.",
+  "contribution_requirements": "None documented",
+  "key_patterns": "Dataclass-based Settings in config/settings.py instantiated at module level. Single Router in handlers/inline.py. LLMService in services/llm.py. All handlers use aiogram 3.x patterns with async handlers and Router.",
+  "relevant_files": [
+    "config/settings.py",
+    "config/__init__.py",
+    "main.py",
+    "handlers/inline.py",
+    "handlers/__init__.py",
+    "services/__init__.py",
+    "services/llm.py",
+    ".env.example",
+    "README.md"
+  ],
+  "directory_structure": "config/ - settings and config error classes; handlers/ - inline query handler router; services/ - LLM service wrapper; main.py - entry point"
+}

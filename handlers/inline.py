@@ -4,7 +4,6 @@ import html
 import logging
 import time
 import uuid
-from typing import Dict, Tuple
 
 from aiogram import Bot, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
@@ -16,7 +15,7 @@ from aiogram.types import (
 )
 from cachetools import TTLCache
 
-from config import settings
+from config import get_settings
 from services.llm import LLMService
 
 logger = logging.getLogger(__name__)
@@ -26,10 +25,14 @@ router = Router(name="inline")
 _llm = LLMService()
 
 # user_id -> last request monotonic timestamp; entries expire naturally
-_cooldowns: TTLCache[int, float] = TTLCache(maxsize=10_000, ttl=settings.cooldown_seconds * 2)
+_cooldowns: TTLCache[int, float] = TTLCache(
+    maxsize=10_000, ttl=get_settings().cooldown_seconds * 2
+)
 
 # query_key -> answer_text with TTL
-_cache: TTLCache[str, str] = TTLCache(maxsize=1000, ttl=settings.cache_ttl)
+_cache: TTLCache[str, str] = TTLCache(maxsize=1000, ttl=get_settings().cache_ttl)
+
+_TELEGRAM_MESSAGE_LIMIT = 4096
 
 
 def _result_id() -> str:
@@ -40,10 +43,11 @@ def _cache_key(text: str) -> str:
     return text.strip().lower()
 
 
-def _is_on_cooldown(user_id: int) -> bool:
+def _check_and_set_cooldown(user_id: int) -> bool:
+    """Check if user is on cooldown. If not, record timestamp and return False."""
     now = time.monotonic()
     last = _cooldowns.get(user_id)
-    if last is not None and now - last < settings.cooldown_seconds:
+    if last is not None and now - last < get_settings().cooldown_seconds:
         return True
     _cooldowns[user_id] = now
     return False
@@ -52,14 +56,18 @@ def _is_on_cooldown(user_id: int) -> bool:
 def _format_answer(query: str, answer: str) -> str:
     q = html.escape(query)
     a = html.escape(answer)
-    return f"<b>Вопрос:</b> {q}\n\n<b>Ответ:</b> {a}"
+    prefix = f"<b>Вопрос:</b> {q}\n\n<b>Ответ:</b> "
+    budget = _TELEGRAM_MESSAGE_LIMIT - len(prefix)
+    if len(a) > budget:
+        a = a[: budget - 3] + "..."
+    return prefix + a
 
 
 @router.inline_query()
 async def handle_inline_query(inline_query: InlineQuery) -> None:
-    """Show a clickable button — no LLM call happens here."""
+    """Show a clickable button - no LLM call happens here."""
     query_text = inline_query.query.strip()
-    user_id = inline_query.from_user.id
+    settings = get_settings()
 
     if not query_text:
         await inline_query.answer(
@@ -73,7 +81,7 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
                     ),
                 )
             ],
-            cache_time=1,
+            cache_time=settings.inline_cache_time,
             is_personal=True,
         )
         return
@@ -90,24 +98,7 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
                     ),
                 )
             ],
-            cache_time=1,
-            is_personal=True,
-        )
-        return
-
-    if _is_on_cooldown(user_id):
-        await inline_query.answer(
-            results=[
-                InlineQueryResultArticle(
-                    id=_result_id(),
-                    title="Подождите немного...",
-                    description="Слишком частые запросы",
-                    input_message_content=InputTextMessageContent(
-                        message_text="Пожалуйста, подождите несколько секунд перед следующим запросом.",
-                    ),
-                )
-            ],
-            cache_time=1,
+            cache_time=settings.inline_cache_time,
             is_personal=True,
         )
         return
@@ -125,7 +116,7 @@ async def handle_inline_query(inline_query: InlineQuery) -> None:
                 ),
             )
         ],
-        cache_time=1,
+        cache_time=settings.inline_cache_time,
         is_personal=True,
     )
 
@@ -138,6 +129,21 @@ async def handle_chosen_result(chosen: ChosenInlineResult, bot: Bot) -> None:
     inline_message_id = chosen.inline_message_id
 
     if not query_text or not inline_message_id:
+        return
+
+    # Cooldown check before LLM call
+    if _check_and_set_cooldown(user_id):
+        try:
+            await bot.edit_message_text(
+                text=_format_answer(
+                    query_text,
+                    "Пожалуйста, подождите несколько секунд перед следующим запросом.",
+                ),
+                inline_message_id=inline_message_id,
+                parse_mode="HTML",
+            )
+        except (TelegramBadRequest, TelegramAPIError) as exc:
+            logger.warning("Failed to edit inline message: %s", exc)
         return
 
     logger.info("User %d chose query: %s", user_id, query_text[:80])
